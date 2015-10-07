@@ -7,19 +7,24 @@
 #include <unistd.h>
 #include <string.h>
 
-typedef struct node {
-  int value;
-  struct node* adjacency[];
-} Node;
+#define ADJ_CAP 2
+#define GRAPH_CAP 2
+#define READ_BUFF_SIZE 10000
+#define LINE_BUFF_SIZE 1000
+#define CLEANER_SIZE 10
 
 #define DISP_PERROR 1
 #define DISP_USAGE 2
 #define CLEAN_EXIT 3
 
+typedef struct node {
+  int value;
+  int adjacencySize;
+  struct node** adjacency;
+} Node;
 
 typedef void (*Cleaner)();
 
-#define CLEANER_SIZE 10
 int cleaners_no = 0;
 Cleaner cleaners[CLEANER_SIZE];
 
@@ -28,12 +33,32 @@ void registerCleaner(Cleaner cleaner){
   cleaners_no++;
 }
 
+int graphCap = GRAPH_CAP;
+Node** graph;
+
+
+Node* createNode() {
+  Node* node = malloc(sizeof(Node));
+  node->adjacency = malloc(ADJ_CAP * sizeof(Node*));
+  return node;
+}
+
+void destroyNode(Node* node) {
+  if (node != NULL) {
+    free(node->adjacency);
+  }
+  free(node);
+}
+
 void terminateGracefully(char* actionName, int flags) {
   // remember to do your own cleanup
   // before you call this! In particular
   // clean up your open file descriptors,
   // etc. All registered cleaners will be
   // called
+  for (int i = 0; i < graphCap; i ++) {
+    destroyNode(graph[i]);
+  }
   for (int i = 0; i < cleaners_no; i++) {
     cleaners[i]();
   }
@@ -77,31 +102,46 @@ The program works best when node indices are small.\n\n";
 
 int* adjacencyCounts; 
 
-#define ADJ_CAP 2
-#define GRAPH_CAP 2
-#define READ_BUFF_SIZE 10000
-#define LINE_BUFF_SIZE 1000
-
 char readBuffer[READ_BUFF_SIZE];
 char lineBuffer[LINE_BUFF_SIZE];
 
-int graphCap = GRAPH_CAP;
-Node** graph;
 
 void graphDestroyer() {
   free(graph);
 }
 
 void setUpGraph() {
-  graph = malloc(GRAPH_CAP);
+  graph = calloc(graphCap, sizeof(Node*));
+
+  if (graph == NULL) {
+    terminateGracefully("couldn't allocate memory for the graph", DISP_PERROR);
+  }
   registerCleaner(graphDestroyer);
 }
 
 void growGraph() {
+  graphCap = 2*graphCap;
+  size_t arrayListSize = graphCap * sizeof(Node*);
+  graph = realloc(graph, arrayListSize);
+  if (graph == NULL) {
+    terminateGracefully("couldn't regrow the graph. Maybe your indexes are too high?", DISP_PERROR);
+  }
+  memset(graph, 0, arrayListSize);
 }
 
-Node* nodeUpsert(int nodeNumber){
-  return 0;
+Node* upsertNode(int nodeNumber){
+  if (nodeNumber < GRAPH_CAP) {
+    Node* node = graph[nodeNumber];
+    if (node != 0) {
+      return node;
+    }
+    node = createNode();
+    graph[nodeNumber] = node;
+    return node;
+  } else {
+    growGraph();
+    return upsertNode(nodeNumber);
+  }
 }
 
 
@@ -134,7 +174,7 @@ Node* loadGraph(char filename[]) {
     }
     if (readStatus < 0) {
       close(fileDes);
-      terminateGracefully("reading a file", DISP_USAGE | DISP_PERROR);
+      terminateGracefully("reading a graph file", DISP_USAGE | DISP_PERROR);
     }
   }
   close(fileDes);
@@ -144,9 +184,10 @@ Node* loadGraph(char filename[]) {
 
 int main(int argc, char* argv[]) {
   if (argc == 1) {
-    terminateGracefully("opening a file. You didn't specify the graph file.", DISP_USAGE);
+    terminateGracefully("opening a graph file. You didn't specify the graph file.", DISP_USAGE);
   }
   setUpGraph();
+  upsertNode(1);
   Node* root = loadGraph(*(argv + 1));
   //printf("%d", root->value);
   terminateGracefully("bye bye", CLEAN_EXIT);
