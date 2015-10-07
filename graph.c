@@ -14,18 +14,39 @@ typedef struct node {
 
 #define DISP_PERROR 1
 #define DISP_USAGE 2
-#define NEXT_FLAG 3
+#define CLEAN_EXIT 3
+
+
+typedef void (*Cleaner)();
+
+#define CLEANER_SIZE 10
+int cleaners_no = 0;
+Cleaner cleaners[CLEANER_SIZE];
+
+void registerCleaner(Cleaner cleaner){
+  cleaners[cleaners_no] = cleaner;
+  cleaners_no++;
+}
 
 void terminateGracefully(char* actionName, int flags) {
   // remember to do your own cleanup
   // before you call this! In particular
   // clean up your open file descriptors,
-  // etc.
-  fprintf(stderr, "\n*** ERROR *** failed while ");
+  // etc. All registered cleaners will be
+  // called
+  for (int i = 0; i < cleaners_no; i++) {
+    cleaners[i]();
+  }
+  if (flags & CLEAN_EXIT) {
+    fprintf(stdout, "%s", actionName);
+    exit(0);
+  }
+  fprintf(stderr, "\n*** ERROR *** ");
   if (flags & DISP_PERROR) {
     perror(actionName);
+    fprintf(stderr, "\n\n");
   } else {
-    fprintf(stderr, "%s", actionName);
+    fprintf(stderr, "%s\n\n", actionName);
   }
   if (flags & DISP_USAGE) {
     char message[] = "\n\nGRAPH CENTRALITY\n\nA simple program to load a graph and \
@@ -54,17 +75,35 @@ The program works best when node indices are small.\n\n";
   exit(-1);
 }
 
-int graphCap = 10;
-
-int graphSize = 0;
-
 int* adjacencyCounts; 
 
-#define readBuffSize 10000
-#define lineBuffSize 1000
+#define ADJ_CAP 2
+#define GRAPH_CAP 2
+#define READ_BUFF_SIZE 10000
+#define LINE_BUFF_SIZE 1000
 
-char readBuffer[readBuffSize];
-char lineBuffer[lineBuffSize];
+char readBuffer[READ_BUFF_SIZE];
+char lineBuffer[LINE_BUFF_SIZE];
+
+int graphCap = GRAPH_CAP;
+Node** graph;
+
+void graphDestroyer() {
+  free(graph);
+}
+
+void setUpGraph() {
+  graph = malloc(GRAPH_CAP);
+  registerCleaner(graphDestroyer);
+}
+
+void growGraph() {
+}
+
+Node* nodeUpsert(int nodeNumber){
+  return 0;
+}
+
 
 int lineFeedAt = 0;
 
@@ -89,16 +128,17 @@ Node* loadGraph(char filename[]) {
       if (readBuffer[i] == '\n') {
         solveLine();
       }
-      if (lineFeedAt + 1 == lineBuffSize) {
-        terminateGracefully("too many characters per line. Reduce your input size.", 0);
+      if (lineFeedAt + 1 == LINE_BUFF_SIZE) {
+        terminateGracefully("too many characters per line. Reduce your input's line size.", 0);
       }
     }
     if (readStatus < 0) {
+      close(fileDes);
       terminateGracefully("reading a file", DISP_USAGE | DISP_PERROR);
     }
   }
   close(fileDes);
-  Node* root = malloc(sizeof(Node));
+  Node* root = 0;
   return root;
 } 
 
@@ -106,7 +146,8 @@ int main(int argc, char* argv[]) {
   if (argc == 1) {
     terminateGracefully("opening a file. You didn't specify the graph file.", DISP_USAGE);
   }
+  setUpGraph();
   Node* root = loadGraph(*(argv + 1));
   //printf("%d", root->value);
-  return 0;
+  terminateGracefully("bye bye", CLEAN_EXIT);
 }
