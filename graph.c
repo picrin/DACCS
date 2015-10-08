@@ -7,8 +7,8 @@
 #include <unistd.h>
 #include <string.h>
 
-#define ADJ_CAP 2
-#define GRAPH_CAP 2
+#define ADJ_CAP 1000
+#define GRAPH_CAP 1
 #define READ_BUFF_SIZE 10000
 #define LINE_BUFF_SIZE 1000
 #define CLEANER_SIZE 10
@@ -37,10 +37,10 @@ void registerCleaner(Cleaner cleaner){
 int graphCap = GRAPH_CAP;
 Node** graph;
 
-Node* createNode() {
+Node* createNode(int value) {
   Node* node = malloc(sizeof(Node));
   node->adjacency = malloc(ADJ_CAP * sizeof(Node*));
-  node->adjacencyCap = GRAPH_CAP;
+  node->adjacencyCap = ADJ_CAP;
   node->adjacencySize = 0;
   return node;
 }
@@ -121,7 +121,7 @@ void addAdjacency(Node* parent, Node* child) {
 }
 
 void connectNodes(Node* node1, Node* node2) {
-  addAdjacency(node1, node1);
+  addAdjacency(node1, node2);
   addAdjacency(node2, node1);
 }
 
@@ -138,16 +138,15 @@ void setUpGraph() {
   }
   registerCleaner(graphDestroyer);
 }
-
+  
 void growGraph() {
-  graphCap = 2*graphCap;
   size_t arrayListSize = graphCap * sizeof(Node*);
-  graph = realloc(graph, arrayListSize);
+  graph = realloc(graph, arrayListSize * 2);
   if (graph == NULL) {
     terminateGracefully("couldn't regrow the graph. Maybe your indexes are too high?", DISP_PERROR);
   }
-  memset(graph, 0, arrayListSize);
-
+  memset(graph + graphCap, 0, arrayListSize);
+  graphCap = 2 * graphCap;
 }
 
 Node* upsertNode(int nodeNumber){
@@ -156,7 +155,7 @@ Node* upsertNode(int nodeNumber){
     if (node != NULL) {
       return node;
     } else {
-      node = createNode();
+      node = createNode(nodeNumber);
       graph[nodeNumber] = node;
       return node;
     }
@@ -179,7 +178,6 @@ void solveLine() {
   Node* nodes[2];
   for (int i = 0; i < 2; i++ ){
     int value = (int) strtol(leftRightStr[i], NULL, 10);
-    printf("%d", value);
     if (errno == EINVAL) {
       terminateGracefully("your graph needs to be a pair of space delimited integer values per line", DISP_PERROR);
     }
@@ -222,5 +220,5 @@ int main(int argc, char* argv[]) {
   setUpGraph();
   loadGraph(*(argv + 1));
   //printf("%d", root->value);
-  terminateGracefully("bye bye", CLEAN_EXIT);
+  terminateGracefully("done :)\n", CLEAN_EXIT);
 }
