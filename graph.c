@@ -42,6 +42,7 @@ Node* createNode(int value) {
   node->adjacency = malloc(ADJ_CAP * sizeof(Node*));
   node->adjacencyCap = ADJ_CAP;
   node->adjacencySize = 0;
+  node->value = value;
   return node;
 }
 
@@ -213,12 +214,26 @@ void loadGraph(char filename[]) {
   close(fileDes);
 } 
 
+void listAllNodes() {
+  int i, j;
+  for (i = 0; i < graphCap; i++) {
+    if (graph[i] != NULL) {
+      printf("node: %d -> ", graph[i]->value);
+      for (j = 0; j < graph[i]->adjacencySize - 1; j++){
+      printf("%d, ", graph[i]->adjacency[j]->value);
+      }
+      printf("%d\n", graph[i]->adjacency[j]->value);
+    }
+  }
+}
+
+
 int main(int argc, char* argv[]) {
   if (argc == 1) {
     terminateGracefully("opening a graph file. You didn't specify the graph file.", DISP_USAGE);
   }
   setUpGraph();
   loadGraph(*(argv + 1));
-  //printf("%d", root->value);
+  listAllNodes();
   terminateGracefully("done :)\n", CLEAN_EXIT);
 }
